@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"sync"
 
@@ -37,9 +38,10 @@ func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend,
 // // Store certificates by serial number
 type keyfactorBackend struct {
 	*framework.Backend
-	configLock   sync.RWMutex
-	cachedConfig *keyfactorConfig
-	client       *keyfactorClient
+	configLock         sync.RWMutex
+	cachedConfig       *keyfactorConfig
+	client             *keyfactorClient
+	httpClientOverride *http.Client // <-- add this
 }
 
 // keyfactorBackend defines the target API keyfactorBackend
@@ -103,6 +105,10 @@ func (b *keyfactorBackend) invalidate(ctx context.Context, key string) {
 func (b *keyfactorBackend) getClient(ctx context.Context, s logical.Storage) (*keyfactorClient, error) {
 	b.configLock.RLock()
 	defer b.configLock.RUnlock()
+
+	if b.httpClientOverride != nil {
+		return &keyfactorClient{httpClient: b.httpClientOverride}, nil
+	}
 
 	if b.client != nil {
 		b.Logger().Debug("closing idle connections before returning existing client")
